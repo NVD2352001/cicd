@@ -20,4 +20,5 @@ public class cicd {
     private int width;
     private int height;
     private String type;
+    private String nxy;
 }
