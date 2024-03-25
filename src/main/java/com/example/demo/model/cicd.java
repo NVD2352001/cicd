@@ -15,4 +15,9 @@ public class cicd {
     @Id
     private String uuid;
     private String name;
+    private int x;
+    private int y;
+    private int width;
+    private int height;
+    private String type;
 }
