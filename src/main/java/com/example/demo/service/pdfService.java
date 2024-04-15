@@ -7,6 +7,8 @@ import com.example.demo.repo.coorDinatesRepo;
 import com.example.demo.repo.imageRepository;
 import com.example.demo.repo.itemRepository;
 import com.example.demo.repo.pdfRepository;
+import io.minio.*;
+import io.minio.errors.*;
 import net.sf.jasperreports.engine.*;
 import net.sf.jasperreports.engine.data.JRBeanCollectionDataSource;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -184,19 +186,51 @@ public class pdfService {
 //    }
     @Autowired
     private imageRepository imrepo;
-    public  String uploadImage( MultipartFile file ){
+    //private final Path imageDirectory = Paths.get("src/main/resources/static/images/");
+
+//    public Resource dowloadImage(int id) throws MalformedURLException {
+//        Path imagePath = imageDirectory.resolve(id+".Jpg");
+//        Resource resource = new ClassPathResource((imagePath.toUri().toString()));
+//        return resource;
+//    }
+public Optional<byte[]> getImageDataById(int id) {
+    Optional<Image> imageOptional = imrepo.findById(id);
+    return imageOptional.map(Image::getData);
+}
+@Autowired
+private MinioClient minioClient;
+    public  String uploadImage( MultipartFile file,String bucketName, String objectName, InputStream inputStream, String contentType ) throws Exception {
         String b ="http://localhost:8080/api/v1/getid?id=";
-        try {
             Image image = new Image();
             image.setName(file.getOriginalFilename());
             image.setData(file.getBytes());
             imrepo.save(image);
             image.setUrl(b+image.getId());
             imrepo.save(image);
-            return "image uploaded successfully";
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+        try {
+            // Kiểm tra xem bucket đã tồn tại chưa
+            boolean isExist = minioClient.bucketExists(BucketExistsArgs.builder().bucket(bucketName).build());
+            if (!isExist) {
+                // Nếu bucket chưa tồn tại, tạo mới
+                minioClient.makeBucket(MakeBucketArgs.builder().bucket(bucketName).build());
+            }
+
+            // Upload đối tượng
+            minioClient.putObject(
+                    PutObjectArgs.builder()
+                            .bucket(bucketName)
+                            .object(objectName)
+                            .stream(inputStream, inputStream.available(), -1)
+                            .contentType(contentType)
+                            .build()
+            );
+
+            System.out.println("Object created successfully");
+        } catch (MinioException e) {
+            System.err.println("Error occurred: " + e);
+            throw new Exception("Error occurred while creating object in Minio", e);
         }
+        return "image uploaded successfully";
     }
     public ResponseEntity<byte[]> getImage(int id){
         try {
